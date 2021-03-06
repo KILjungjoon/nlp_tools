@@ -28,8 +28,9 @@ class GramTools:
         return freq
 
     def get_n_gram_freq(self, n):
-        n_gram = self.get_gram_by_lines(n=n)
-        return self.get_freq(n_gram)
+        n_gram      = self.get_gram_by_lines(n=n)
+        n_gram_freq = self.get_freq(n_gram)
+        return dict(sorted(n_gram_freq.items(), key=lambda item: item[1], reverse=True))
 
     def save(self, path, content, indent=4):
         with open(path, 'w', encoding='utf-8') as f:
