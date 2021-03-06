@@ -31,7 +31,7 @@ class Base:
     def get_driver(self):
         driver = self.__init_driver()
         if self.headers:
-            driver.request_interceptor = get_interceptor(self.headers)
+            driver.request_interceptor = self.get_interceptor(self.headers)
         return driver
 
     def click_button(self, driver, position, method='xpath'):
@@ -45,16 +45,14 @@ class Base:
 
 
 class GooglePlay(Base):
-    def __init__(self):
-        super().__init__()
-        self.driver = self.get_driver()
-
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
         self.url = None
         self.scroll_cnt = 50
         self.result_file = './result.csv'
 
     def run_script(self):
-        driver = self.driver
+        driver = self.get_driver()
         driver.get(self.url)
         scroll_cnt  = self.scroll_cnt
         result_file = self.result_file

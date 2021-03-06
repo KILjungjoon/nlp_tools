@@ -1,6 +1,9 @@
 from tools import GooglePlay
 
-gp             = GooglePlay()
+
+driver_path = './tools/chromedriver'
+
+gp             = GooglePlay(driver_path)
 gp.url         = 'https://play.google.com/store/apps/details?id=air.com.speakingmax&hl=ko&showAllReviews=true'
 gp.result_file = './sample_crawler_result.csv'
 gp.scroll_cnt  = 10
