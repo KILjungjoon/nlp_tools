@@ -10,7 +10,7 @@ from selenium import webdriver
 current_path = os.path.dirname(os.path.realpath(__file__))
 
 class Base:
-    def __init__(self, driver_path=f'{current_path}/chromedriver'):
+    def __init__(self, driver_path=f'{current_path}/drivers/chromedriver'):
         self.driver_path = driver_path
         self.headers = {}
         self.position = (0,0)
