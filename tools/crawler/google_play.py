@@ -1,9 +1,15 @@
-from .base import Base
+try:
+    from .base import Base
+except:
+    from base import Base
 
-import time
-import pandas as pd
-from bs4 import BeautifulSoup 
 from datetime import datetime
+from bs4 import BeautifulSoup
+from urllib.parse import parse_qs
+import urllib.parse as urlparse
+import pandas as pd
+import time
+import re
 
 class GooglePlay(Base):
     def __init__(self, *args, **kwargs):
@@ -12,6 +18,64 @@ class GooglePlay(Base):
         self.scroll_cnt = 50
         self.result_file = './result.csv'
 
+        self.bs4_parser = 'html.parser'
+
+        self.target_columns = ['name', 'ratings', 'date', 'helpful', 'comment', 'developer_comment']
+
+    def scroll_to_load_data(self, driver):
+        self.scroll_to_bottom(driver)
+        time.sleep(3)
+        try:
+            # bottom xpath
+            xpath = "/html/body/div[1]/div[4]/c-wiz/div/div[2]/div/div/main/div/div[1]/div[2]/div[2]/div/span/span"
+            self.click_button(driver, xpath, 'xpath')
+            self.print('Clicked button.')
+        except:
+            self.print('Loading...')
+
+    def get_star(self, s):
+        stars = re.findall(r'[-+]?\d*\.\d+|\d+', s)
+        stars.sort()
+        return int(stars[0])
+
+    def get_language(self):
+        parsed = urlparse.urlparse(self.url)
+        return parse_qs(parsed.query)['hl'][0].lower()
+
+    def get_datatime_format(self):
+        datetime_format = {
+            'ko': '%Y년 %m월 %d일',
+            'en': '%B %d, %Y',
+            'cn': '%Y年%m月%d日',
+            'ja': '%Y年%m月%d日',
+        }
+        lang = self.get_language()
+        return datetime_format[lang] if lang in datetime_format else None
+
+    def get_date(self, s):
+        date = datetime.strptime(s, self.get_datatime_format())
+        return date.strftime('%Y-%m-%d')
+
+    def parse_xml(self, xml):
+        # parse string to html using bs4
+        soup = BeautifulSoup(xml, self.bs4_parser)
+
+        data = {column:None for column in self.target_columns}
+        data['name']    = soup.find(class_='X43Kjb').text  # reviewer
+        data['ratings'] = self.get_star(soup.find('div', role='img').get('aria-label'))  # rating
+        data['date']    = self.get_date(soup.find(class_='p2TkOb').text)  # review date
+
+        helpful = soup.find(class_='jUL89d y92BAb').text
+        data['helpful'] = helpful if helpful else 0  # helpful
+
+        comment = soup.find('span', jsname='fbQN7e').text
+        data['comment'] = comment if comment else soup.find('span', jsname='bN97Pc').text  # review text
+
+        dc_div = soup.find('div', class_='LVQB0b')
+        data['developer_comment'] = dc_div.text.replace('\n', ' ') if dc_div else None  # developer comment
+
+        return data
+
     def run_script(self):
         driver = self.get_driver()
         driver.get(self.url)
@@ -19,77 +83,31 @@ class GooglePlay(Base):
         result_file = self.result_file
 
         for i in range(scroll_cnt):
-            self.scroll_to_bottom(driver)
-            time.sleep(3)
-            try:
-                xpath = "/html/body/div[1]/div[4]/c-wiz/div/div[2]/div/div/main/div/div[1]/div[2]/div[2]/div/span/span"
-                # css_target = '#fcxH9b > div.WpDbMd > c-wiz > div > div.ZfcPIb > div > div > main > div > div.W4P4ne > div:nth-child(2) > div.PFAhAf > div > span > span'
-                self.click_button(driver, xpath, 'xpath')
-                print('[ GooglePlay ] Clicked button.')
-            except:
-                pass
+            self.scroll_to_load_data(driver)
 
         reviews = driver.find_elements_by_xpath('//*[@jsname="fk8dgd"]//div[@class="d15Mdf bAhLNe"]')
-        print(f'[ GooglePlay ] There are {len(reviews)} reviews avaliable!')
-        print('[ GooglePlay ] Writing the data...')
+        self.print(f'There are {len(reviews)} reviews avaliable!')
+        self.print('Writing the data...')
 
-        # create empty dataframe to store data
-        df = pd.DataFrame(columns=['name', 'ratings', 'date', 'helpful', 'comment', 'developer_comment'])
+        df = pd.DataFrame(columns=self.target_columns)
 
-        # get review data
         for review in reviews:
-            # parse string to html using bs4
-            soup = BeautifulSoup(review.get_attribute('innerHTML'), 'html.parser')
-
-            # reviewer
-            name = soup.find(class_='X43Kjb').text
-
-            # rating
-            ratings = int(soup.find('div', role='img').get('aria-label').replace('별표 5개 만점에', '').replace('개를 받았습니다.', '').strip())
-
-            # review date
-            date = soup.find(class_='p2TkOb').text
-            date = datetime.strptime(date, '%Y년 %m월 %d일')
-            date = date.strftime('%Y-%m-%d')
-
-            # helpful
-            helpful = soup.find(class_='jUL89d y92BAb').text
-            if not helpful:
-                helpful = 0
-
-            # review text
-            comment = soup.find('span', jsname='fbQN7e').text
-            if not comment:
-                comment = soup.find('span', jsname='bN97Pc').text
-
-            # developer comment
-            developer_comment = None
-            dc_div = soup.find('div', class_='LVQB0b')
-            if dc_div:
-                developer_comment = dc_div.text.replace('\n', ' ')
-
+            data = self.parse_xml(review.get_attribute('innerHTML'))
             # append to dataframe
-            df = df.append({
-                'name': name,
-                'ratings': ratings,
-                'date': date,
-                'helpful': helpful,
-                'comment': comment,
-                'developer_comment': developer_comment
-            }, ignore_index=True)
+            df = df.append(data, ignore_index=True)
 
         # finally save the dataframe into csv file
         filename = datetime.now().strftime('result/%Y-%m-%d_%H-%M-%S.csv')
         df.to_csv(result_file, encoding='utf-8-sig', index=False)
         driver.stop_client()
         driver.close()
-        print('[ GooglePlay ] Finished.')
+        self.print('Finished.')
 
 
 if __name__ == '__main__':
     gp             = GooglePlay()
-    gp.url         = 'https://play.google.com/store/apps/details?id=air.com.speakingmax&hl=ko&showAllReviews=true'
+    gp.url         = 'https://play.google.com/store/apps/details?id=com.supercell.brawlstars&showAllReviews=true&hl=ja'
     gp.result_file = './result.csv'
-    gp.scroll_cnt  = 10
+    gp.scroll_cnt  = 1
     gp.headers     = {'accept-language': 'ko,ko-KR;q=0.9,en-US;q=0.8,en;q=0.7'}
     gp.run_script()

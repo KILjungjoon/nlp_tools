@@ -11,6 +11,10 @@ class Base:
         self.position = (0,0)
         self.size = (1000,1000)
 
+    def print(self, info=''):
+        info = f'[ {self.__class__.__name__} ] {info}'
+        print(info)
+
     def __init_driver(self):
         driver=webdriver.Chrome(self.driver_path)
         driver.set_window_position(*self.position)
