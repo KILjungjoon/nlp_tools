@@ -1,10 +1,14 @@
 import json
+import re
 
 class GramTools:
     def __init__(self, text, remove_symbles=''):
         self.text = text
-        for symble in remove_symbles:
-            self.text = self.text.replace(symble, '')
+        if remove_symbles=='all':
+            self.text = re.sub(r'[^\w]', ' ', text)
+        elif remove_symbles:
+            for symble in remove_symbles:
+                self.text = self.text.replace(symble, '')
         self.lines = self.text.split('\n')
 
     def get_gram_by_line(self, line, n=1):
@@ -32,18 +36,24 @@ class GramTools:
         n_gram_freq = self.get_freq(n_gram)
         return dict(sorted(n_gram_freq.items(), key=lambda item: item[1], reverse=True))
 
-    def save(self, path, content, indent=4):
+    def save(self, path, content, format='custom', indent=4):
         with open(path, 'w', encoding='utf-8') as f:
-            json.dump(content, f, indent=indent, ensure_ascii=False)
+            if format=='custom':
+                for k,v in content.items():
+                    f.write(f'{k}|{v}\n')
+            elif format=='json':
+                json.dump(content, f, indent=indent, ensure_ascii=False)
 
 if __name__=='__main__':
-    with open('./simple_comtent.txt', 'r', encoding='utf-8') as f:
+    # with open('./simple_comtent.txt', 'r', encoding='utf-8') as f:
+    with open('./서울구로_total.txt', 'r', encoding='utf-8') as f:
         text = f.read()
-    g = GramTools(text, '.?')
-    uni_gram = g.get_n_gram_freq(1)
-    # bi_gram  = g.get_n_gram_freq(2)
+    g = GramTools(text, 'all')
+    # uni_gram = g.get_n_gram_freq(1)
+    bi_gram  = g.get_n_gram_freq(2)
     # tri_gram = g.get_n_gram_freq(3)
 
-    g.save('./result_uni_gram.json', uni_gram)
+    # g.save('./result_uni_gram.json', uni_gram)
     # g.save('./result_bi_gram.json', bi_gram)
+    g.save('./result_bi_gram.txt', bi_gram)
     # g.save('./result_thi_gram.json', tri_gram)
